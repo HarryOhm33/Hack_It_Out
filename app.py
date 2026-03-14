@@ -7,12 +7,27 @@ import pandas as pd
 import pydeck as pdk
 import plotly.graph_objects as go
 
+# ---------------------------------------------------
+# PAGE CONFIG - MUST BE FIRST STREAMLIT COMMAND
+# ---------------------------------------------------
 st.set_page_config(
     page_title="PyClimaExplorer",
     page_icon="🌍",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",  # Start with sidebar collapsed
 )
+
+# ---------------------------------------------------
+# SESSION STATE INITIALIZATION
+# ---------------------------------------------------
+if 'dataset_uploaded' not in st.session_state:
+    st.session_state.dataset_uploaded = False
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = "Home"
+if 'uploaded_file_data' not in st.session_state:
+    st.session_state.uploaded_file_data = None
+if 'uploader_key' not in st.session_state:
+    st.session_state.uploader_key = 0  # For resetting uploader if needed
 
 # ---------------------------------------------------
 # CUSTOM STYLING
@@ -29,6 +44,11 @@ st.markdown(
     section[data-testid="stSidebar"] {
         background: #08101d;
         border-right: 1px solid rgba(255,255,255,0.08);
+    }
+
+    /* Hide sidebar by default - will be shown after upload */
+    section[data-testid="stSidebar"] {
+        display: block;
     }
 
     .main-title {
@@ -98,6 +118,61 @@ st.markdown(
         padding: 10px;
         border-radius: 16px;
     }
+
+    /* Landing page specific styles */
+    .upload-hero {
+        background: linear-gradient(135deg, rgba(34,211,238,0.25), rgba(59,130,246,0.15), rgba(16,185,129,0.15));
+        border: 2px dashed rgba(255,255,255,0.2);
+        border-radius: 32px;
+        padding: 40px 30px;
+        text-align: center;
+        margin: 40px 0;
+        transition: all 0.3s ease;
+    }
+    
+    .upload-hero:hover {
+        border-color: rgba(34,211,238,0.5);
+        background: linear-gradient(135deg, rgba(34,211,238,0.3), rgba(59,130,246,0.2), rgba(16,185,129,0.2));
+    }
+    
+    .upload-icon {
+        font-size: 80px;
+        margin-bottom: 20px;
+    }
+    
+    .feature-badge {
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 40px;
+        padding: 8px 20px;
+        display: inline-block;
+        margin: 5px;
+        color: #b7c9e2;
+    }
+    
+    /* Style the file uploader to match the hero section */
+    .stFileUploader {
+        margin-top: 20px;
+    }
+    
+    .stFileUploader > div {
+        background: transparent !important;
+        border: none !important;
+        padding: 0 !important;
+    }
+    
+    .stFileUploader > div > div {
+        background: rgba(255,255,255,0.05) !important;
+        border: 1px solid rgba(255,255,255,0.1) !important;
+        border-radius: 16px !important;
+        padding: 20px !important;
+    }
+    
+    .stFileUploader label {
+        color: white !important;
+        font-size: 18px !important;
+        font-weight: 600 !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -106,7 +181,6 @@ st.markdown(
 # ---------------------------------------------------
 # HELPERS
 # ---------------------------------------------------
-
 
 def detect_dims(data_array):
     dims = data_array.dims
@@ -177,198 +251,192 @@ def format_value(val):
         return f"{val}"
     return str(val)
 
+# ---------------------------------------------------
+# HANDLE FILE UPLOAD FUNCTION
+# ---------------------------------------------------
+
+def handle_file_upload(uploaded_file):
+    """Process uploaded file and update session state"""
+    if uploaded_file is not None:
+        # Store the file data in session state using getvalue() to avoid reading issues
+        st.session_state.uploaded_file_data = uploaded_file
+        st.session_state.dataset_uploaded = True
+        st.session_state.current_page = "Dashboard"
+        # Increment uploader key to reset if needed
+        st.session_state.uploader_key += 1
+        st.rerun()
 
 # ---------------------------------------------------
-# SIDEBAR
+# SIDEBAR - Only shown after dataset is uploaded
 # ---------------------------------------------------
-with st.sidebar:
+if st.session_state.dataset_uploaded:
+    with st.sidebar:
+        st.markdown(
+            """
+            <style>
+            section[data-testid="stSidebar"] > div:first-child {
+                padding-top: 0.5rem;
+            }
+
+            section[data-testid="stSidebar"] .stRadio label {
+                padding: 4px 0px;
+            }
+
+            section[data-testid="stSidebar"] h1 {
+                margin-top: 0rem;
+                padding-top: 0rem;
+                font-size: 28px;
+            }
+
+            section[data-testid="stSidebar"] .stCaption {
+                margin-top: -8px;
+                margin-bottom: 8px;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.title("🌍 PyClimaExplorer")
+        st.caption("Climate Intelligence Platform")
+
+        st.markdown("---")
+
+        # Navigation - use session state to track current page
+        page_options = ["Home", "Dashboard", "Dataset Explorer", "Comparison", "Story Mode", "About", "3D Globe"]
+        selected_page = st.radio(
+            "Navigation",
+            page_options,
+            index=page_options.index(st.session_state.current_page) if st.session_state.current_page in page_options else 0,
+        )
+        st.session_state.current_page = selected_page
+
+        st.markdown("---")
+        st.markdown("### Upload Dataset")
+
+        # Sidebar uploader for replacing the dataset
+        sidebar_file = st.file_uploader("Replace Dataset", type=["nc"], key=f"sidebar_uploader_{st.session_state.uploader_key}")
+        if sidebar_file is not None:
+            handle_file_upload(sidebar_file)
+
+        st.caption("Supported format: .nc")
+else:
+    # If no dataset uploaded, force page to Home
+    st.session_state.current_page = "Home"
+
+# ---------------------------------------------------
+# HOME PAGE (LANDING PAGE)
+# ---------------------------------------------------
+if st.session_state.current_page == "Home":
+    # Full-width landing page with prominent upload area
     st.markdown(
         """
-        <style>
-        section[data-testid="stSidebar"] > div:first-child {
-            padding-top: 0.5rem;
-        }
-
-        section[data-testid="stSidebar"] .stRadio label {
-            padding: 4px 0px;
-        }
-
-        section[data-testid="stSidebar"] h1 {
-            margin-top: 0rem;
-            padding-top: 0rem;
-            font-size: 28px;
-        }
-
-        section[data-testid="stSidebar"] .stCaption {
-            margin-top: -8px;
-            margin-bottom: 8px;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.title("🌍 PyClimaExplorer")
-    st.caption("Climate Intelligence Platform")
-
-    st.markdown("---")
-
-    page = st.radio(
-        "Navigation",
-        [
-            "Home",
-            "Dashboard",
-            "Dataset Explorer",
-            "Comparison",
-            "Story Mode",
-            "About",
-            "3D Globe",
-        ],
-    )
-
-    st.markdown("---")
-    st.markdown("### Upload Dataset")
-
-    uploaded_file = st.file_uploader(
-        "Upload NetCDF Dataset",
-        type=["nc"],
-    )
-
-    st.caption("Supported format: .nc")
-
-# ---------------------------------------------------
-# HOME PAGE
-# ---------------------------------------------------
-
-if page == "Home":
-    st.markdown(
-        """
-        <div style="
-            background: linear-gradient(135deg, rgba(34,211,238,0.18), rgba(59,130,246,0.10), rgba(16,185,129,0.10));
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 24px;
-            padding: 38px 32px;
-            margin-bottom: 22px;
-        ">
-            <div style="font-size:48px;font-weight:800;line-height:1.1;color:white;">
-                Explore Climate Data <br> Like a Modern Intelligence Platform
-            </div>
-            <div style="font-size:17px;color:#c7d7ee;margin-top:14px;max-width:850px;line-height:1.7;">
-                PyClimaExplorer transforms raw NetCDF climate datasets into interactive maps,
-                temporal trends, and comparison-driven visual stories. Built for researchers,
-                students, and anyone who wants to understand climate patterns faster.
-            </div>
+        <div style="text-align: center; padding: 20px 0 10px 0;">
+            <h1 style="font-size: 56px; font-weight: 800; background: linear-gradient(135deg, #7dd3fc, #60a5fa); 
+                -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0;">
+                PyClimaExplorer
+            </h1>
+            <p style="font-size: 20px; color: #b7c9e2; margin-top: 5px;">
+                Climate Intelligence Platform
+            </p>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    hero_col1, hero_col2, hero_col3, hero_col4 = st.columns(4)
-
-    with hero_col1:
+    # Main upload hero section with actual file uploader
+    with st.container():
         st.markdown(
             """
-            <div class="metric-card">
-                <div class="metric-value">🌍</div>
-                <div class="metric-label">Global Spatial Maps</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    with hero_col2:
-        st.markdown(
-            """
-            <div class="metric-card">
-                <div class="metric-value">📈</div>
-                <div class="metric-label">Temporal Trends</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    with hero_col3:
-        st.markdown(
-            """
-            <div class="metric-card">
-                <div class="metric-value">🧭</div>
-                <div class="metric-label">Location Insights</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    with hero_col4:
-        st.markdown(
-            """
-            <div class="metric-card">
-                <div class="metric-value">🆚</div>
-                <div class="metric-label">Comparison Mode</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    st.markdown("<div class='section-title'>Core Features</div>", unsafe_allow_html=True)
-
-    c1, c2, c3 = st.columns(3)
-
-    with c1:
-        st.markdown(
-            """
-            <div class="glass-card" style="min-height:220px;">
-                <h3 style="margin-bottom:12px;">🌡 Global Heatmaps</h3>
-                <p class="small-muted" style="line-height:1.7;">
-                    Visualize spatial distribution of climate variables across latitude and longitude.
-                    Instantly detect high-value and low-value regions from map-based views.
+            <div class="upload-hero">
+                <div class="upload-icon">🌍</div>
+                <h2 style="font-size: 36px; color: white; margin-bottom: 10px;">Start Your Climate Exploration</h2>
+                <p style="font-size: 18px; color: #b7c9e2; margin-bottom: 30px; max-width: 600px; margin-left: auto; margin-right: auto;">
+                    Upload a NetCDF (.nc) dataset to unlock interactive maps, temporal trends, and climate insights
                 </p>
-                <div style="margin-top:16px;color:#7dd3fc;font-weight:600;">Map-first exploration</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
+        
+        # Actual file uploader in the hero section
+        uploaded_file = st.file_uploader(
+            "Choose a NetCDF file", 
+            type=["nc"], 
+            key=f"home_uploader_{st.session_state.uploader_key}",
+            label_visibility="collapsed"
+        )
+        
+        if uploaded_file is not None:
+            handle_file_upload(uploaded_file)
 
-    with c2:
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Features grid
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
         st.markdown(
             """
-            <div class="glass-card" style="min-height:220px;">
-                <h3 style="margin-bottom:12px;">📈 Time Trends</h3>
-                <p class="small-muted" style="line-height:1.7;">
-                    Track how a selected variable changes over time for a specific location.
-                    Understand long-term patterns using interactive time-series charts.
-                </p>
-                <div style="margin-top:16px;color:#7dd3fc;font-weight:600;">Time-based analysis</div>
+            <div class="metric-card">
+                <div style="font-size: 32px;">🌡️</div>
+                <div class="metric-value">Global Maps</div>
+                <div class="metric-label">Spatial distribution visualization</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-
-    with c3:
+    
+    with col2:
         st.markdown(
             """
-            <div class="glass-card" style="min-height:220px;">
-                <h3 style="margin-bottom:12px;">🆚 Comparison Mode</h3>
-                <p class="small-muted" style="line-height:1.7;">
-                    Compare two different time slices side-by-side to reveal climate change clearly.
-                    Perfect for showcasing patterns between past and present.
-                </p>
-                <div style="margin-top:16px;color:#7dd3fc;font-weight:600;">Side-by-side insights</div>
+            <div class="metric-card">
+                <div style="font-size: 32px;">📈</div>
+                <div class="metric-value">Time Trends</div>
+                <div class="metric-label">Location-based temporal analysis</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    
+    with col3:
+        st.markdown(
+            """
+            <div class="metric-card">
+                <div style="font-size: 32px;">🆚</div>
+                <div class="metric-value">Comparison</div>
+                <div class="metric-label">Side-by-side climate shifts</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    
+    with col4:
+        st.markdown(
+            """
+            <div class="metric-card">
+                <div style="font-size: 32px;">🌐</div>
+                <div class="metric-value">3D Globe</div>
+                <div class="metric-label">Interactive globe visualization</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-    st.markdown("<div class='section-title'>How It Works</div>", unsafe_allow_html=True)
+    st.markdown("<br><br>", unsafe_allow_html=True)
 
+    # How it works section
+    st.markdown("<h2 style='text-align: center; color: white;'>How It Works</h2>", unsafe_allow_html=True)
+    
     flow1, flow2, flow3, flow4 = st.columns(4)
 
     with flow1:
         st.markdown(
             """
-            <div class="glass-card" style="text-align:center;min-height:180px;">
-                <div style="font-size:34px;">📂</div>
-                <h4>Upload Dataset</h4>
-                <p class="small-muted">Import a NetCDF (.nc) climate dataset from the sidebar.</p>
+            <div class="glass-card" style="text-align:center; min-height:200px;">
+                <div style="font-size: 40px;">📂</div>
+                <h4>1. Upload Dataset</h4>
+                <p class="small-muted">Import your NetCDF (.nc) climate file</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -377,10 +445,10 @@ if page == "Home":
     with flow2:
         st.markdown(
             """
-            <div class="glass-card" style="text-align:center;min-height:180px;">
-                <div style="font-size:34px;">🎛</div>
-                <h4>Select Variable</h4>
-                <p class="small-muted">Choose temperature, rainfall, wind, or any available variable.</p>
+            <div class="glass-card" style="text-align:center; min-height:200px;">
+                <div style="font-size: 40px;">🎛️</div>
+                <h4>2. Select Variable</h4>
+                <p class="small-muted">Choose temperature, rainfall, or any variable</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -389,10 +457,10 @@ if page == "Home":
     with flow3:
         st.markdown(
             """
-            <div class="glass-card" style="text-align:center;min-height:180px;">
-                <div style="font-size:34px;">🗺</div>
-                <h4>Explore Patterns</h4>
-                <p class="small-muted">Analyze global maps, local coordinates, and spatial variation.</p>
+            <div class="glass-card" style="text-align:center; min-height:200px;">
+                <div style="font-size: 40px;">🗺️</div>
+                <h4>3. Explore Patterns</h4>
+                <p class="small-muted">Analyze maps, coordinates, and trends</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -401,87 +469,31 @@ if page == "Home":
     with flow4:
         st.markdown(
             """
-            <div class="glass-card" style="text-align:center;min-height:180px;">
-                <div style="font-size:34px;">📊</div>
-                <h4>Generate Insights</h4>
-                <p class="small-muted">Understand trends, compare periods, and present meaningful stories.</p>
+            <div class="glass-card" style="text-align:center; min-height:200px;">
+                <div style="font-size: 40px;">📊</div>
+                <h4>4. Generate Insights</h4>
+                <p class="small-muted">Compare periods and present findings</p>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-    left_info, right_info = st.columns([1.3, 1])
-
-    with left_info:
-        st.markdown("<div class='section-title'>Why This Platform Matters</div>", unsafe_allow_html=True)
-        st.markdown(
-            """
-            <div class="glass-card" style="min-height:250px;">
-                <p class="small-muted" style="line-height:1.8;">
-                    Climate datasets are rich in information, but often difficult to explore quickly.
-                    This platform helps users move from raw multidimensional scientific data to clear,
-                    interactive, visual understanding.
-                </p>
-                <p class="small-muted" style="line-height:1.8;">
-                    Instead of scrolling through raw arrays and metadata, users can identify spatial
-                    patterns, observe temporal shifts, compare different years, and communicate findings
-                    in a more compelling way.
-                </p>
-                <div style="margin-top:16px;padding:12px 14px;border-radius:14px;background:rgba(34,211,238,0.08);color:#d9f3ff;">
-                    Built for climate exploration, storytelling, and research-friendly visual analytics.
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    with right_info:
-        st.markdown("<div class='section-title'>Ideal Use Cases</div>", unsafe_allow_html=True)
-        st.markdown(
-            """
-            <div class="glass-card" style="min-height:250px;">
-                <div style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
-                    <b>🔬 Researchers</b><br>
-                    <span class="small-muted">Quickly inspect spatial and temporal climate data.</span>
-                </div>
-                <div style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
-                    <b>🎓 Students</b><br>
-                    <span class="small-muted">Understand climate variables visually and interactively.</span>
-                </div>
-                <div style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);">
-                    <b>📢 Presentations</b><br>
-                    <span class="small-muted">Use maps and trends to explain data clearly in demos.</span>
-                </div>
-                <div style="padding:10px 0;">
-                    <b>🌱 Public Awareness</b><br>
-                    <span class="small-muted">Turn climate numbers into understandable stories.</span>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    st.markdown("<div class='section-title'>Quick Start</div>", unsafe_allow_html=True)
-
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Feature tags
     st.markdown(
         """
-        <div class="glass-card">
-            <div style="font-size:16px;color:white;font-weight:600;margin-bottom:10px;">
-                Upload dataset → Select variable → Choose time → Explore maps → Analyze trends → Compare climate shifts
-            </div>
-            <div class="small-muted" style="line-height:1.8;">
-                Start by uploading a NetCDF file from the sidebar. Then move to the Dashboard, Dataset Explorer,
-                or Comparison page to begin analysis.
-            </div>
+        <div style="text-align: center; padding: 20px;">
+            <span class="feature-badge">🌡️ Temperature Analysis</span>
+            <span class="feature-badge">💧 Precipitation</span>
+            <span class="feature-badge">🌬️ Wind Patterns</span>
+            <span class="feature-badge">🌊 Ocean Data</span>
+            <span class="feature-badge">📊 Time Series</span>
+            <span class="feature-badge">🗺️ Spatial Mapping</span>
         </div>
         """,
         unsafe_allow_html=True,
     )
-
-    if not uploaded_file:
-        st.info("Upload a NetCDF (.nc) file from the left sidebar to start exploring.")
-    else:
-        st.success("Dataset uploaded successfully. Now open Dashboard, Dataset Explorer, or Comparison from the sidebar.")
 
 # ---------------------------------------------------
 # LOAD DATASET
@@ -500,57 +512,66 @@ selected_display = None
 data_slice = None
 lat_vals = None
 lon_vals = None
+selected_year = None
 
-if uploaded_file:
+if st.session_state.dataset_uploaded and st.session_state.uploaded_file_data:
     try:
+        # Use getvalue() to read the file content safely
+        file_content = st.session_state.uploaded_file_data.getvalue()
+        
         with tempfile.NamedTemporaryFile(delete=False, suffix=".nc") as tmp:
-            tmp.write(uploaded_file.read())
+            tmp.write(file_content)
             tmp_path = tmp.name
 
         dataset = xr.open_dataset(tmp_path)
 
-        var_options = get_variable_options(dataset)
-        display_options = list(var_options.keys())
+        # Only show variable selection if we're past the home page and dataset is loaded
+        if st.session_state.current_page != "Home" and st.session_state.dataset_uploaded and st.session_state.uploaded_file_data:
+            var_options = get_variable_options(dataset)
+            display_options = list(var_options.keys())
 
-        if len(display_options) > 0:
-            selected_display = st.sidebar.selectbox("Select Variable", display_options)
-            variable = var_options[selected_display]
+            if len(display_options) > 0:
+                selected_display = st.sidebar.selectbox("Select Variable", display_options)
+                variable = var_options[selected_display]
 
-            time_dim, lat_dim, lon_dim = detect_dims(dataset[variable])
+                time_dim, lat_dim, lon_dim = detect_dims(dataset[variable])
 
-            time_vals, time_dt, all_years, unique_years = extract_time_info(dataset, time_dim)
+                time_vals, time_dt, all_years, unique_years = extract_time_info(dataset, time_dim)
 
-            if time_dim and unique_years and len(unique_years) > 0:
-                selected_year = st.sidebar.select_slider(
-                    "Select Time",
-                    options=unique_years,
-                    value=unique_years[0],
-                )
-                time_index = np.where(all_years == selected_year)[0][0]
-            else:
-                selected_year = None
-                time_index = 0
+                if time_dim and unique_years and len(unique_years) > 0:
+                    selected_year = st.sidebar.select_slider(
+                        "Select Time",
+                        options=unique_years,
+                        value=unique_years[0],
+                    )
+                    time_index = np.where(all_years == selected_year)[0][0]
+                else:
+                    selected_year = None
+                    time_index = 0
 
-            if time_dim:
-                data_slice = dataset[variable].isel({time_dim: time_index})
-            else:
-                data_slice = dataset[variable]
+                if time_dim:
+                    data_slice = dataset[variable].isel({time_dim: time_index})
+                else:
+                    data_slice = dataset[variable]
 
-            if lat_dim:
-                lat_vals = dataset[lat_dim].values
-            if lon_dim:
-                lon_vals = dataset[lon_dim].values
+                if lat_dim:
+                    lat_vals = dataset[lat_dim].values
+                if lon_dim:
+                    lon_vals = dataset[lon_dim].values
 
     except Exception as e:
         st.error(f"Failed to load dataset: {e}")
+        # Reset upload state on error
+        st.session_state.dataset_uploaded = False
+        st.session_state.uploaded_file_data = None
 
 # ---------------------------------------------------
 # DASHBOARD PAGE
 # ---------------------------------------------------
 
-if page == "Dashboard":
+if st.session_state.current_page == "Dashboard" and st.session_state.dataset_uploaded:
     if dataset is None or variable is None:
-        st.warning("Please upload a NetCDF dataset from the sidebar.")
+        st.warning("Please select a variable from the sidebar.")
     else:
         st.markdown("<div class='section-title'>Dashboard Overview</div>", unsafe_allow_html=True)
 
@@ -697,9 +718,9 @@ if page == "Dashboard":
 # DATASET EXPLORER PAGE
 # ---------------------------------------------------
 
-if page == "Dataset Explorer":
+if st.session_state.current_page == "Dataset Explorer" and st.session_state.dataset_uploaded:
     if dataset is None or variable is None:
-        st.warning("Please upload a NetCDF dataset from the sidebar.")
+        st.warning("Please select a variable from the sidebar.")
     else:
         st.markdown("<div class='section-title'>Dataset Explorer</div>", unsafe_allow_html=True)
 
@@ -759,9 +780,9 @@ if page == "Dataset Explorer":
 # COMPARISON PAGE
 # ---------------------------------------------------
 
-if page == "Comparison":
+if st.session_state.current_page == "Comparison" and st.session_state.dataset_uploaded:
     if dataset is None or variable is None:
-        st.warning("Please upload a NetCDF dataset from the sidebar.")
+        st.warning("Please select a variable from the sidebar.")
     elif not (time_dim and lat_dim and lon_dim):
         st.warning("Comparison view requires time, latitude, and longitude dimensions.")
     elif len(dataset[time_dim]) <= 1:
@@ -838,9 +859,9 @@ if page == "Comparison":
 # STORY MODE PAGE
 # ---------------------------------------------------
 
-if page == "Story Mode":
+if st.session_state.current_page == "Story Mode" and st.session_state.dataset_uploaded:
     if dataset is None or variable is None:
-        st.warning("Please upload a NetCDF dataset from the sidebar.")
+        st.warning("Please select a variable from the sidebar.")
     else:
         st.markdown("<div class='section-title'>Story Mode</div>", unsafe_allow_html=True)
 
@@ -999,7 +1020,7 @@ if page == "Story Mode":
 # ABOUT PAGE
 # ---------------------------------------------------
 
-if page == "About":
+if st.session_state.current_page == "About" and st.session_state.dataset_uploaded:
     st.markdown("<div class='section-title'>About PyClimaExplorer</div>", unsafe_allow_html=True)
 
     st.markdown(
@@ -1028,10 +1049,13 @@ if page == "About":
         unsafe_allow_html=True,
     )
 
+# ---------------------------------------------------
+# 3D GLOBE PAGE
+# ---------------------------------------------------
 
-if page == "3D Globe":
+if st.session_state.current_page == "3D Globe" and st.session_state.dataset_uploaded:
     if dataset is None or variable is None:
-        st.warning("Please upload a NetCDF dataset from the sidebar.")
+        st.warning("Please select a variable from the sidebar.")
     elif not (lat_dim and lon_dim):
         st.warning("3D globe view requires latitude and longitude dimensions.")
     else:
