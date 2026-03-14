@@ -2,12 +2,10 @@ import streamlit as st
 from components.uploader import handle_file_upload
 
 PAGE_OPTIONS = [
-    "Home",
     "Dashboard",
     "Dataset Explorer",
     "Comparison",
     "Story Mode",
-    "About",
     "3D Globe",
 ]
 
