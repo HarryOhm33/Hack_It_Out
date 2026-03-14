@@ -3,6 +3,7 @@ import xarray as xr
 import tempfile
 import plotly.express as px
 import numpy as np
+import pandas as pd
 
 st.set_page_config(layout="wide")
 
@@ -45,7 +46,18 @@ if uploaded_file:
 
         st.markdown("### Select Variable")
 
-        variable = st.selectbox("Choose a variable", list(dataset.data_vars))
+        # Create mapping of display names to variable names
+        var_options = {}
+        for var in dataset.data_vars:
+            # Try to get long_name attribute, fallback to variable name
+            long_name = dataset[var].attrs.get("long_name", var)
+            units = dataset[var].attrs.get("units", "")
+            display_name = f"{long_name} ({units})" if units else long_name
+            var_options[display_name] = var
+
+        display_options = list(var_options.keys())
+        selected_display = st.selectbox("Choose a variable", display_options)
+        variable = var_options[selected_display]
 
     dims = dataset[variable].dims
 
@@ -71,9 +83,21 @@ if uploaded_file:
 
             if len(time_vals) > 1:
 
-                time_index = st.select_slider(
-                    "Select time", options=list(range(len(time_vals))), value=0
+                # Extract years from time values
+                try:
+                    time_df = pd.to_datetime(time_vals)
+                    all_years = time_df.year.values.astype(int)
+                    unique_years = sorted(np.unique(all_years).tolist())
+                except:
+                    # If conversion fails, use indices
+                    unique_years = list(range(len(time_vals)))
+                    all_years = np.array(unique_years)
+
+                selected_year = st.select_slider(
+                    "Select time", options=unique_years, value=unique_years[0]
                 )
+                # Find the actual index of the first occurrence of the selected year
+                time_index = np.where(all_years == selected_year)[0][0]
 
             else:
 
@@ -109,7 +133,7 @@ if uploaded_file:
             labels={"x": "Longitude", "y": "Latitude", "color": variable},
         )
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="global_map")
 
     else:
 
@@ -157,7 +181,7 @@ if uploaded_file:
             labels={"x": "Time", "y": variable},
         )
 
-        st.plotly_chart(fig2, use_container_width=True)
+        st.plotly_chart(fig2, use_container_width=True, key="trend_chart")
 
     # -----------------------------
     # COMPARISON MODE
@@ -171,14 +195,30 @@ if uploaded_file:
 
             colA, colB = st.columns(2)
 
-            timeA = st.slider("Time A", 0, len(dataset[time_dim]) - 1, 0)
+            # Extract years for comparison sliders
+            try:
+                time_vals_comp = dataset[time_dim].values
+                time_df_comp = pd.to_datetime(time_vals_comp)
+                all_years_comp = time_df_comp.year.values.astype(int)
+                min_year = int(all_years_comp.min())
+                max_year = int(all_years_comp.max())
+            except:
+                all_years_comp = np.arange(len(dataset[time_dim]))
+                min_year = 0
+                max_year = len(dataset[time_dim]) - 1
 
-            timeB = st.slider(
+            yearA = st.slider("Time A", min_year, max_year, min_year)
+            # Find the closest year in the data
+            timeA = np.argmin(np.abs(all_years_comp - yearA))
+
+            yearB = st.slider(
                 "Time B",
-                0,
-                len(dataset[time_dim]) - 1,
-                min(1, len(dataset[time_dim]) - 1),
+                min_year,
+                max_year,
+                min(min_year + 1, max_year),
             )
+            # Find the closest year in the data
+            timeB = np.argmin(np.abs(all_years_comp - yearB))
 
             sliceA = dataset[variable].isel({time_dim: timeA})
             sliceB = dataset[variable].isel({time_dim: timeB})
@@ -193,7 +233,7 @@ if uploaded_file:
                     color_continuous_scale="RdYlBu_r",
                 )
 
-                st.plotly_chart(figA, use_container_width=True)
+                st.plotly_chart(figA, use_container_width=True, key="comparison_a")
 
             with colB:
 
@@ -205,7 +245,7 @@ if uploaded_file:
                     color_continuous_scale="RdYlBu_r",
                 )
 
-                st.plotly_chart(figB, use_container_width=True)
+                st.plotly_chart(figB, use_container_width=True, key="comparison_b")
 
         else:
 
