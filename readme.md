@@ -14,8 +14,8 @@ Follow these steps to run the project locally.
 ## 1️⃣ Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/pyclimaexplorer.git
-cd pyclimaexplorer
+git clone https://github.com/HarryOhm33/Hack_It_Out.git
+cd Hack_It_Out
 ```
 
 ## 2️⃣ Create a Virtual Environment
@@ -80,7 +80,7 @@ http://localhost:8501
 The deployed version of PyClimaExplorer is available here:
 
 ```
-https://your-streamlit-app-link.streamlit.app
+https://pyclima-remarkable.streamlit.app
 ```
 
 This version allows users to upload climate datasets and explore them interactively without installing anything.
