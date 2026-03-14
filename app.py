@@ -8,7 +8,6 @@ from views.dashboard import render_dashboard_page
 from views.dataset_explorer import render_dataset_explorer_page
 from views.comparison import render_comparison_page
 from views.story_mode import render_story_mode_page
-from views.about import render_about_page
 from views.globe_3d import render_globe_page
 
 
@@ -49,9 +48,6 @@ elif current_page == "Comparison":
 
 elif current_page == "Story Mode":
     render_story_mode_page(dataset_context)
-
-elif current_page == "About":
-    render_about_page()
 
 elif current_page == "3D Globe":
     render_globe_page(dataset_context)
