@@ -1,6 +1,19 @@
 import streamlit as st
 from components.uploader import handle_file_upload
 
+PAGE_OPTIONS = [
+    "Home",
+    "Dashboard",
+    "Dataset Explorer",
+    "Comparison",
+    "Story Mode",
+    "About",
+    "3D Globe",
+]
+
+def change_page():
+    st.session_state.current_page = st.session_state.sidebar_page
+
 def render_sidebar():
     with st.sidebar:
         st.markdown(
@@ -34,13 +47,21 @@ def render_sidebar():
 
         st.markdown("---")
 
-        page_options = ["Home", "Dashboard", "Dataset Explorer", "Comparison", "Story Mode", "About", "3D Globe"]
-        selected_page = st.radio(
+        if "current_page" not in st.session_state:
+            st.session_state.current_page = "Home"
+
+        if "sidebar_page" not in st.session_state:
+            st.session_state.sidebar_page = st.session_state.current_page
+
+        if st.session_state.sidebar_page != st.session_state.current_page:
+            st.session_state.sidebar_page = st.session_state.current_page
+
+        st.radio(
             "Navigation",
-            page_options,
-            index=page_options.index(st.session_state.current_page) if st.session_state.current_page in page_options else 0,
+            PAGE_OPTIONS,
+            key="sidebar_page",
+            on_change=change_page,
         )
-        st.session_state.current_page = selected_page
 
         st.markdown("---")
         st.markdown("### Upload Dataset")
@@ -48,8 +69,9 @@ def render_sidebar():
         sidebar_file = st.file_uploader(
             "Replace Dataset",
             type=["nc"],
-            key=f"sidebar_uploader_{st.session_state.uploader_key}"
+            key=f"sidebar_uploader_{st.session_state.uploader_key}",
         )
+
         if sidebar_file is not None:
             handle_file_upload(sidebar_file)
 
